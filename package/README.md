@@ -62,3 +62,7 @@ Found in `BepInEx/config/com.drakexi.valkyriesvision.cfg`.
 | MessageSeconds | 5 | How long the message stays fully visible |
 | PlayStinger | true | Play the "new biome discovered" sound with the message |
 | DebugLogging | false | Log every boss and keyed creature on world load |
+
+## Bugs & feature requests
+
+Report bugs or suggest features on [GitHub Issues](https://github.com/Drake1973/ValkyriesVision/issues).

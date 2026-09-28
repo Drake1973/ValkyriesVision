@@ -21,7 +21,7 @@ namespace ValkyriesVision
     {
         public const string PluginGUID = "com.drakexi.valkyriesvision";
         public const string PluginName = "Valkyrie's Vision";
-        public const string PluginVersion = "0.6.0";
+        public const string PluginVersion = "0.6.1";
 
         private const float WorldRadius = 10000f;
         private const float StartupDelay = 10f;      // seconds after spawning before first check (lets server config sync arrive)
