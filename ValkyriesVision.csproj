@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <AssemblyName>ValkyriesVision</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <ValheimManaged>$(HOME)/.local/share/Steam/steamapps/common/Valheim/valheim_Data/Managed</ValheimManaged>
+    <!-- Test profile only -->
+    <ProfileDir>$(HOME)/.var/app/io.github.ebkr.r2modman/config/r2modmanPlus-local/Valheim/profiles/MapReveal Test</ProfileDir>
+    <PluginFolder>$(ProfileDir)/BepInEx/plugins/Drakexi-ValkyriesVision</PluginFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="$(ValheimManaged)/assembly_*.dll" Private="false" />
+    <Reference Include="$(ValheimManaged)/UnityEngine*.dll" Private="false" />
+    <Reference Include="$(ProfileDir)/BepInEx/core/BepInEx.dll" Private="false" />
+    <Reference Include="$(ProfileDir)/BepInEx/core/0Harmony.dll" Private="false" />
+    <Reference Include="$(ProfileDir)/BepInEx/plugins/ValheimModding-Jotunn/Jotunn.dll" Private="false" />
+  </ItemGroup>
+
+  <!-- After building: update the imported mod in the test profile, then make the import zip -->
+  <Target Name="DeployAndPackage" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginFolder)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(MSBuildProjectDirectory)/package" />
+    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)/package" DestinationFile="$(HOME)/Downloads/ValkyriesVision.zip" Overwrite="true" />
+  </Target>
+
+</Project>

@@ -1,0 +1,10 @@
+{
+  "name": "ValkyriesVision",
+  "version_number": "0.6.0",
+  "website_url": "",
+  "description": "Slay the Forsaken and the Valkyrie reveals the world. Each boss kill lifts the fog from its biome, or from a growing ring around the world center. Server-synced settings.",
+  "dependencies": [
+    "denikson-BepInExPack_Valheim-5.4.2333",
+    "ValheimModding-Jotunn-2.30.2"
+  ]
+}
