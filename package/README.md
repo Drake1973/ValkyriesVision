@@ -8,6 +8,24 @@ When a boss falls, the Valkyrie's vision sweeps across the land, the fog lifts, 
 
 By default, revealed areas appear with the same light haze as map data shared by other players, so you can still tell where you've actually been, and each player earns reveals only for the bosses they were present for. Both can be changed in the settings.
 
+## Screenshots
+
+A typical mid-game map without the mod:
+
+![Before](https://raw.githubusercontent.com/Drake1973/ValkyriesVision/main/images/before.webp)
+
+Eikthyr falls, and the Valkyrie reveals the Meadows:
+
+![Meadows revealed](https://raw.githubusercontent.com/Drake1973/ValkyriesVision/main/images/meadows.png)
+
+The Queen falls, and the Mistlands and the seas are revealed:
+
+![Queen revealed](https://raw.githubusercontent.com/Drake1973/ValkyriesVision/main/images/queen.png)
+
+Rings mode: each boss widens the circle:
+
+![Rings mode](https://raw.githubusercontent.com/Drake1973/ValkyriesVision/main/images/circle.png)
+
 ## Reveal modes
 
 **Biome mode (default).** Each boss reveals every patch of its own biome, anywhere in the world, including tiny islands at the far edge. Those distant specks become landing spots and base sites worth sailing to.
