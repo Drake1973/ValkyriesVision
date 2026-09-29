@@ -23,7 +23,7 @@ namespace ValkyriesVision
     {
         public const string PluginGUID = "com.drakexi.valkyriesvision";
         public const string PluginName = "Valkyrie's Vision";
-        public const string PluginVersion = "0.7.0";
+        public const string PluginVersion = "0.7.1";
 
         private const float WorldRadius = 10000f;
         private const float StartupDelay = 10f;      // seconds after spawning before first check (lets server config sync arrive)
@@ -61,6 +61,9 @@ namespace ValkyriesVision
         private static Func<Minimap, int, int, bool> _explore;
         private static Func<Minimap, int, int, bool> _exploreOthers;
         private static FieldInfo _exploredField;
+        private static FieldInfo _exploredOthersField;
+        private static bool _useDirectMarking;
+        private string _failedSignature;
         private ConfigEntry<RevealStyle> _style;
         private ConfigEntry<ProgressionSource> _source;
 
@@ -117,8 +120,9 @@ namespace ValkyriesVision
             MethodInfo exploreOthersMethod = typeof(Minimap).GetMethod("ExploreOthers", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
                 null, new[] { typeof(int), typeof(int) }, null);
             _exploredField = typeof(Minimap).GetField("m_explored", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            _exploredOthersField = typeof(Minimap).GetField("m_exploredOthers", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
 
-            if (_fogField == null || exploreMethod == null || exploreOthersMethod == null || _exploredField == null)
+            if (_fogField == null || exploreMethod == null || exploreOthersMethod == null || _exploredField == null || _exploredOthersField == null)
             {
                 this.Logger.LogError("Could not find Minimap internals (m_fogTexture / m_explored / Explore / ExploreOthers). Mod disabled.");
                 enabled = false;
@@ -171,7 +175,7 @@ namespace ValkyriesVision
             bool ocean = (oceanIndex >= 0 && defeated[oceanIndex]) || AllKeysSet(_oceanEarlyKeys.Value);
 
             string signature = $"{_mode.Value}|{_scaling.Value}|{_style.Value}|{_source.Value}|{ocean}|{string.Join(",", Array.ConvertAll(defeated, d => d ? "1" : "0"))}";
-            if (signature == _appliedSignature) return;
+            if (signature == _appliedSignature || signature == _failedSignature) return;
 
             StartCoroutine(RevealRoutine(signature, defeated, ocean));
         }
@@ -275,6 +279,7 @@ namespace ValkyriesVision
             _inWorld = false;
             _busy = false;
             _appliedSignature = null;
+            _failedSignature = null;
             _biomeCache = null;
             _appliedMask = Heightmap.Biome.None;
         }
@@ -324,12 +329,39 @@ namespace ValkyriesVision
             _biomeCache = cache;
         }
 
+        // Runs the reveal, but catches any error (usually another mod patching the same map code),
+        // logs it clearly, and always releases the busy flag so the mod never gets stuck.
         private IEnumerator RevealRoutine(string signature, bool[] defeated, bool ocean)
         {
             _busy = true;
+            IEnumerator inner = RevealRoutineInner(signature, defeated, ocean);
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!inner.MoveNext()) break;
+                    current = inner.Current;
+                }
+                catch (Exception ex)
+                {
+                    _failedSignature = signature;
+                    this.Logger.LogError("Reveal failed. This is usually a conflict with another mod that changes the map " +
+                                         "(map reveal or exploration mods). It will be retried when your progress or settings change. Details: " + ex);
+                    break;
+                }
+                yield return current;
+            }
+            _busy = false;
+        }
+
+        private IEnumerator RevealRoutineInner(string signature, bool[] defeated, bool ocean)
+        {
             Minimap map = Minimap.instance;
             bool translucent = _style.Value == RevealStyle.Translucent;
             Func<Minimap, int, int, bool> mark = translucent ? _exploreOthers : _explore;
+            System.Collections.BitArray exploredOthers = (System.Collections.BitArray)_exploredOthersField.GetValue(map);
+            Texture2D fog = (Texture2D)_fogField.GetValue(map);
             System.Collections.BitArray explored = (System.Collections.BitArray)_exploredField.GetValue(map);
             int size = map.m_textureSize;
             float pixel = map.m_pixelSize;
@@ -352,7 +384,8 @@ namespace ValkyriesVision
                 if (mask != Heightmap.Biome.None && _biomeCache == null)
                 {
                     this.Logger.LogInfo("Building biome map...");
-                    yield return BuildBiomeCache(map, size, pixel);
+                    IEnumerator build = BuildBiomeCache(map, size, pixel);
+                    while (build.MoveNext()) yield return build.Current;
                     if (_biomeCache == null) { _busy = false; yield break; }
                 }
             }
@@ -388,7 +421,7 @@ namespace ValkyriesVision
                         }
 
                         // In translucent mode, skip pixels the player already explored themselves (already fully clear)
-                        if (reveal && !(translucent && explored[y * size + x]) && mark(map, x, y)) revealed++;
+                        if (reveal && !(translucent && explored[y * size + x]) && Mark(mark, map, x, y, translucent, explored, exploredOthers, fog, size)) revealed++;
 
                         if (++work >= PixelsPerFrame)
                         {
@@ -402,7 +435,7 @@ namespace ValkyriesVision
 
             if (revealed > 0)
             {
-                ((Texture2D)_fogField.GetValue(map)).Apply();
+                fog.Apply();
             }
 
             this.Logger.LogInfo($"Reveal pass done: mode={mode}, bosses={count}, ocean={ocean}, newly revealed pixels={revealed}");
@@ -418,7 +451,35 @@ namespace ValkyriesVision
 
             if (mode == RevealMode.Biome) _appliedMask = mask;
             _appliedSignature = signature;
-            _busy = false;
+        }
+
+        // Marks one map pixel using the game's own function. If another mod has hooked that function and it throws,
+        // switch (for the rest of the session) to marking the pixel directly, exactly the way the game's function does.
+        private bool Mark(Func<Minimap, int, int, bool> gameMark, Minimap map, int x, int y, bool translucent,
+                          System.Collections.BitArray explored, System.Collections.BitArray exploredOthers, Texture2D fog, int size)
+        {
+            if (!_useDirectMarking)
+            {
+                try
+                {
+                    return gameMark(map, x, y);
+                }
+                catch (Exception ex)
+                {
+                    _useDirectMarking = true;
+                    this.Logger.LogWarning("The game's map-reveal function threw an error, most likely because another map mod hooks it. " +
+                                           "Switching to direct map marking so reveals still work. Details: " + ex);
+                }
+            }
+
+            System.Collections.BitArray target = translucent ? exploredOthers : explored;
+            int index = y * size + x;
+            if (target[index]) return false;
+            Color pixel = fog.GetPixel(x, y);
+            if (translucent) pixel.g = 0f; else pixel.r = 0f;
+            fog.SetPixel(x, y, pixel);
+            target[index] = true;
+            return true;
         }
     }
 }

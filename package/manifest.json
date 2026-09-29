@@ -1,6 +1,6 @@
 {
   "name": "ValkyriesVision",
-  "version_number": "0.7.0",
+  "version_number": "0.7.1",
   "website_url": "https://github.com/Drake1973/ValkyriesVision",
   "description": "Slay the Forsaken and the Valkyrie reveals the world. Each boss kill lifts the fog from its biome, or from a growing ring around the world center. Server-synced settings.",
   "dependencies": [

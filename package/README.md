@@ -52,6 +52,7 @@ Rings mode: each boss widens the circle:
 - Installing mid-playthrough is fine. On first load, everything you've already earned is revealed at once.
 - By default, reveals follow **your own** boss kills, like the player-based raids world modifier: a newcomer to a server doesn't inherit everyone else's progress. Switch `ProgressionSource` to `World` to give every player the reveals for every boss the world has seen.
 - Walking through a hazy (translucent) area yourself makes it fully clear, as normal.
+- **Other map mods:** if another mod that changes the map causes an error, Valkyrie's Vision logs it clearly in `BepInEx/LogOutput.log` and works around it where it can. If reveals still don't appear, look for `Valkyrie's Vision` error lines in that log and report them on GitHub.
 - **Changing settings mid-game:** loosening them (`Player` to `World`, or `Translucent` to `Clear`) catches up at your next login. Tightening them (`World` to `Player`, or `Clear` to `Translucent`) only affects new reveals; nothing already revealed is fogged again. For a clean slate, the `resetmap` console command wipes that character's map for the world, and the mod then re-applies only what the current settings allow.
 
 ## Installation

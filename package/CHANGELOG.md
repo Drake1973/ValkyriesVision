@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1
+- Fixed: if another mod that changes the map (for example SKKSailingMapReveal) caused an error during a reveal, Valkyrie's Vision stopped silently and never tried again. It now logs a clear error, recovers, and retries when your progress or settings change.
+- If another mod's hook breaks the game's map-reveal function, the mod now switches to marking the map directly so reveals still work, and logs a warning explaining why.
+- Thanks to firehawkx for the report.
+
 ## 0.7.0
 **Defaults changed:** read before updating.
 - New setting **RevealStyle**. Default **Translucent**: revealed areas now look like map data shared by other players (a light haze) instead of fully clear. Set to `Clear` for the old behavior.
