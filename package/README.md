@@ -6,6 +6,8 @@ Exploring Valheim leaves your map looking like ant tunnels through the fog. Reve
 
 When a boss falls, the Valkyrie's vision sweeps across the land, the fog lifts, and the game's "new biome discovered" sound plays.
 
+By default, revealed areas appear with the same light haze as map data shared by other players, so you can still tell where you've actually been, and each player earns reveals only for the bosses they were present for. Both can be changed in the settings.
+
 ## Reveal modes
 
 **Biome mode (default).** Each boss reveals every patch of its own biome, anywhere in the world, including tiny islands at the far edge. Those distant specks become landing spots and base sites worth sailing to.
@@ -30,11 +32,13 @@ When a boss falls, the Valkyrie's vision sweeps across the land, the fog lifts, 
 - Reveals only ever add to your map. Nothing you explored yourself is hidden.
 - Reveals are permanent and saved to your character, just like normal exploration.
 - Installing mid-playthrough is fine. On first load, everything you've already earned is revealed at once.
-- Reveals are based on world progress (boss keys), so on a server every player with the mod gets the reveals, including people who join later.
+- By default, reveals follow **your own** boss kills, like the player-based raids world modifier: a newcomer to a server doesn't inherit everyone else's progress. Switch `ProgressionSource` to `World` to give every player the reveals for every boss the world has seen.
+- Walking through a hazy (translucent) area yourself makes it fully clear, as normal.
+- **Changing settings mid-game:** loosening them (`Player` to `World`, or `Translucent` to `Clear`) catches up at your next login. Tightening them (`World` to `Player`, or `Clear` to `Translucent`) only affects new reveals; nothing already revealed is fogged again. For a clean slate, the `resetmap` console command wipes that character's map for the world, and the mod then re-applies only what the current settings allow.
 
 ## Installation
 
-Install with r2modman or Thunderstore Mod Manager. Requires BepInEx and Jötunn.
+Install with r2modman, Thunderstore Mod Manager, or Gale (available on Thunderstore and Hexium). Requires BepInEx and Jötunn.
 
 **Client only:** works on any server, including vanilla ones. The mod reads boss progress that the game already shares with every player, and uses your own config.
 
@@ -49,6 +53,8 @@ Found in `BepInEx/config/com.drakexi.valkyriesvision.cfg`.
 | Setting | Default | Description |
 |---|---|---|
 | RevealMode | Biome | `Biome` or `Rings` |
+| RevealStyle | Translucent | `Translucent` (light haze, like shared map data) or `Clear` (fully revealed) |
+| ProgressionSource | Player | `Player` (only bosses you were present for) or `World` (every boss defeated on the world) |
 | RingScaling | EqualArea | Rings mode only: `EqualArea` or `EqualRadius` |
 | OceanReveal | Queen | Biome mode only: which boss reveals the ocean (`Never` disables it) |
 | OceanRevealEarlyKeys | BossHildir1,BossHildir2,BossHildir3 | Biome mode only: keys that reveal the ocean early once all are set. Blank disables the early reveal. |

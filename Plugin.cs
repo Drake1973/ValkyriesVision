@@ -12,6 +12,8 @@ namespace ValkyriesVision
     public enum RevealMode { Biome, Rings }
     public enum RingScaling { EqualRadius, EqualArea }
     public enum OceanOption { Never, Eikthyr, Elder, Bonemass, Moder, Yagluth, Queen, Fader, Kall }
+    public enum RevealStyle { Translucent, Clear }
+    public enum ProgressionSource { Player, World }
 
     [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
     [BepInDependency(Jotunn.Main.ModGuid)]
@@ -21,7 +23,7 @@ namespace ValkyriesVision
     {
         public const string PluginGUID = "com.drakexi.valkyriesvision";
         public const string PluginName = "Valkyrie's Vision";
-        public const string PluginVersion = "0.6.1";
+        public const string PluginVersion = "0.7.0";
 
         private const float WorldRadius = 10000f;
         private const float StartupDelay = 10f;      // seconds after spawning before first check (lets server config sync arrive)
@@ -57,6 +59,10 @@ namespace ValkyriesVision
 
         private static FieldInfo _fogField;
         private static Func<Minimap, int, int, bool> _explore;
+        private static Func<Minimap, int, int, bool> _exploreOthers;
+        private static FieldInfo _exploredField;
+        private ConfigEntry<RevealStyle> _style;
+        private ConfigEntry<ProgressionSource> _source;
 
         private bool _inWorld;
         private bool _busy;
@@ -81,6 +87,10 @@ namespace ValkyriesVision
                 Desc("Rings mode only. EqualRadius: each boss adds 1/8 of the radius. EqualArea: each boss adds 1/8 of the map area."));
             _ocean = Config.Bind("General", "OceanReveal", OceanOption.Queen,
                 Desc("Biome mode only. Which boss kill reveals the ocean. Never = only the early keys below can reveal it."));
+            _style = Config.Bind("General", "RevealStyle", RevealStyle.Translucent,
+                Desc("Translucent: revealed areas look like map data shared by other players (a light haze). Clear: fully revealed, like your own exploration."));
+            _source = Config.Bind("General", "ProgressionSource", ProgressionSource.Player,
+                Desc("Player: each player only gets reveals for bosses they were present for (like the player-based raids world modifier). World: reveals for every boss anyone on the world has defeated."));
             _oceanEarlyKeys = Config.Bind("General", "OceanRevealEarlyKeys", "BossHildir1,BossHildir2,BossHildir3",
                 Desc("Biome mode only. Comma-separated world keys that reveal the ocean early once ALL are set (default: Hildir's three mini-bosses). Blank = no early reveal."));
 
@@ -104,9 +114,13 @@ namespace ValkyriesVision
             MethodInfo exploreMethod = typeof(Minimap).GetMethod("Explore", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
                 null, new[] { typeof(int), typeof(int) }, null);
 
-            if (_fogField == null || exploreMethod == null)
+            MethodInfo exploreOthersMethod = typeof(Minimap).GetMethod("ExploreOthers", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+                null, new[] { typeof(int), typeof(int) }, null);
+            _exploredField = typeof(Minimap).GetField("m_explored", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+
+            if (_fogField == null || exploreMethod == null || exploreOthersMethod == null || _exploredField == null)
             {
-                this.Logger.LogError("Could not find Minimap internals (m_fogTexture / Explore). Mod disabled.");
+                this.Logger.LogError("Could not find Minimap internals (m_fogTexture / m_explored / Explore / ExploreOthers). Mod disabled.");
                 enabled = false;
                 return;
             }
@@ -116,6 +130,7 @@ namespace ValkyriesVision
             _stingerField = typeof(MessageHud).GetField("m_biomeFoundStinger", any);
 
             _explore = (Func<Minimap, int, int, bool>)Delegate.CreateDelegate(typeof(Func<Minimap, int, int, bool>), exploreMethod);
+            _exploreOthers = (Func<Minimap, int, int, bool>)Delegate.CreateDelegate(typeof(Func<Minimap, int, int, bool>), exploreOthersMethod);
             this.Logger.LogInfo($"{PluginName} {PluginVersion} loaded.");
         }
 
@@ -149,13 +164,13 @@ namespace ValkyriesVision
             for (int i = 0; i < 8; i++)
             {
                 string key = _bossKeys[i].Value;
-                defeated[i] = !string.IsNullOrEmpty(key) && ZoneSystem.instance.GetGlobalKey(key);
+                defeated[i] = !string.IsNullOrEmpty(key) && KeySet(key);
             }
 
             int oceanIndex = (int)_ocean.Value - 1; // Never = -1
             bool ocean = (oceanIndex >= 0 && defeated[oceanIndex]) || AllKeysSet(_oceanEarlyKeys.Value);
 
-            string signature = $"{_mode.Value}|{_scaling.Value}|{ocean}|{string.Join(",", Array.ConvertAll(defeated, d => d ? "1" : "0"))}";
+            string signature = $"{_mode.Value}|{_scaling.Value}|{_style.Value}|{_source.Value}|{ocean}|{string.Join(",", Array.ConvertAll(defeated, d => d ? "1" : "0"))}";
             if (signature == _appliedSignature) return;
 
             StartCoroutine(RevealRoutine(signature, defeated, ocean));
@@ -233,7 +248,14 @@ namespace ValkyriesVision
             centerText.CrossFadeAlpha(0f, 1.5f, true);
         }
 
-        private static bool AllKeysSet(string list)
+        private bool KeySet(string key)
+        {
+            return _source.Value == ProgressionSource.Player
+                ? Player.m_localPlayer != null && Player.m_localPlayer.HaveUniqueKey(key)
+                : ZoneSystem.instance.GetGlobalKey(key);
+        }
+
+        private bool AllKeysSet(string list)
         {
             if (string.IsNullOrWhiteSpace(list)) return false;
             bool any = false;
@@ -242,7 +264,7 @@ namespace ValkyriesVision
                 string key = raw.Trim();
                 if (key.Length == 0) continue;
                 any = true;
-                if (!ZoneSystem.instance.GetGlobalKey(key)) return false;
+                if (!KeySet(key)) return false;
             }
             return any;
         }
@@ -306,6 +328,9 @@ namespace ValkyriesVision
         {
             _busy = true;
             Minimap map = Minimap.instance;
+            bool translucent = _style.Value == RevealStyle.Translucent;
+            Func<Minimap, int, int, bool> mark = translucent ? _exploreOthers : _explore;
+            System.Collections.BitArray explored = (System.Collections.BitArray)_exploredField.GetValue(map);
             int size = map.m_textureSize;
             float pixel = map.m_pixelSize;
             int half = size / 2;
@@ -362,7 +387,8 @@ namespace ValkyriesVision
                             reveal = revealAll || (wx * wx + wy * wy) <= radiusSq;
                         }
 
-                        if (reveal && _explore(map, x, y)) revealed++;
+                        // In translucent mode, skip pixels the player already explored themselves (already fully clear)
+                        if (reveal && !(translucent && explored[y * size + x]) && mark(map, x, y)) revealed++;
 
                         if (++work >= PixelsPerFrame)
                         {
